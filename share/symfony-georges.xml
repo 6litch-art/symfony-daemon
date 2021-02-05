@@ -3,7 +3,7 @@
 	<project>
 		<server path="/var/www/chapaland.com/www" port="8001" />
 		<workers>
-			<worker path="/var/www/chapaland.com/www" name="async" />
+			<worker path="/var/www/chapaland.com/www" transport="async" />
 		</workers>
-	</project>	
+	</project>
 </symfony>

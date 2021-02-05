@@ -1,1 +1,98 @@
 #! /usr/bin/python3.7
+
+import os
+import argparse
+import subprocess
+from lxml import etree
+from colorama import Fore, Back, Style
+import signal
+import sys
+import time
+
+__VERSION__ = "1.0.0";
+__ROOTDIR__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
+
+def wait(plist = []):
+    return [p.wait() for p in plist];
+
+def send_command(cmdlist, verbose = False):
+
+    plist = [];
+    for cmd in cmdlist:
+        if(type(cmd) == list): cmd = ' && '.join(cmd);
+        plist.append(subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True));
+
+        if(verbose): print("@subprocess: "+cmd + "; @return "+plist.end().communicate()[0].strip().decode("utf-8"));
+
+    return plist;
+
+def parse_xml(xmlfile):
+
+    d = {"server": [], "worker": []};
+    tree = etree.parse(xmlfile)
+
+    for server in tree.xpath("/symfony/project/server"):
+        d["server"].append({"path":server.get("path"), "port":server.get("port")});
+
+    for worker in tree.xpath("/symfony/project/workers/worker"):
+        d["worker"].append({"path":worker.get("path"), "transport":worker.get("transport")});
+
+    return d;
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Symfony Autoserve Arguments')
+    parser.add_argument('--config', type=str,
+                        default="/etc/symfony.xml",
+                        help='Provide XML configuration file')
+
+    args = parser.parse_args()
+    symfony = parse_xml(args.config);
+
+    print(Fore.MAGENTA + "-- Symfony Autoserve v"+__VERSION__+Style.RESET_ALL);
+    print(Fore.GREEN + "-- Project Directory: "+Style.RESET_ALL + __ROOTDIR__);
+    print(Fore.GREEN + "-- XML Configuration File: "+Style.RESET_ALL + args.config);
+
+    print(Fore.GREEN + "-- Server request found:"+ Style.RESET_ALL)
+    slist = [];
+    for server in symfony["server"]:
+        slist += send_command([
+            ["cd " + server["path"], "symfony serve --port " + server["port"] + " > symfony.log 2> symfony.log"]
+        ]);
+        print("   * Path:"+server["path"]+ " (symfony.log stored into it); Port:"+server["port"]+"; PID: ["+str(slist[-1].pid)+"]");
+
+    print(Fore.GREEN + "-- Async worker request found:"+ Style.RESET_ALL)
+    wlist = [];
+    for worker in symfony["worker"]:
+        wlist += send_command([
+            ["cd " + worker["path"], "symfony console messenger:consume " + worker["transport"] + " -vv > symfony-messenger.log 2> symfony-messenger.log"]
+        ]);
+        print("   * Path:"+worker["path"]+ " (symfony-messenger.log stored into it); Transport:"+worker["transport"]+"; PID: ["+str(wlist[-1].pid)+"]");
+
+    def signal_handler(sig, frame):
+        print('You pressed Ctrl+C.. Killing Symfony services..')
+        for p in slist:
+            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+        for p in wlist:
+            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    time.sleep(0.5);
+
+    # Check if servers is running
+    print(Fore.GREEN + "-- Server daemon(s) running: " + str([p.pid for p in slist]) + Style.RESET_ALL)
+    for p in slist:
+        poll = p.poll()
+        if not poll is None:
+            print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+
+    # Check if workers is running
+    print(Fore.GREEN + "-- Worker daemon(s) running: " + str([p.pid for p in wlist]) + Style.RESET_ALL)
+    for p in wlist:
+        poll = p.poll()
+        if not poll is None:
+            print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+
+    print('   * Press Ctrl+C to exit')
+
+    wait(slist+wlist);

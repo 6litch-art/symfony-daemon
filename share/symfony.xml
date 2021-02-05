@@ -3,14 +3,14 @@
 	<project>
 		<server path="/your/symfony/project1" port="8001" />
 		<workers>
-			<worker path="/your/symfony/project1" name="async" />
+			<worker path="/your/symfony/project1" transport="async" />
 		</workers>
-	</project>	
+	</project>
 
 	<project>
 		<server path="/your/symfony/project2" port="8002" />
 		<workers>
-			<worker path="/your/symfony/project2" name="async" />
+			<worker path="/your/symfony/project2" transport="async" />
 		</workers>
-	</project>	
+	</project>
 </symfony>

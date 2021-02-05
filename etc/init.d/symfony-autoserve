@@ -23,11 +23,14 @@ USER="www-data"
 GROUP="www-data"
 DESC="Symfony Autoserve + Consumer"
 DAEMON="$(which symfony-autoserve)"
-DAEMONOPTS="--http-auth-username symfony --http-auth-password QnpuvcuO"
+DAEMONOPTS="--config /etc/symfony/symfony-autoserve.xml"
 PIDDIR="/var/run/$NAME"
 PIDFILE="$PIDDIR/$NAME.pid"
 LOGDIR="/var/log/$NAME"
 LOGFILE="$LOGDIR/$NAME.log"
+
+# logdir
+mkdir -p $LOGDIR
 
 # clear conflicting settings from the environment
 unset TMPDIR
