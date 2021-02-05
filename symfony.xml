@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<symfony>
+	<project>
+		<server path="/var/www/chapaland.com/www" port="8001" />
+		<workers>
+			<worker path="/var/www/chapaland.com/www" name="async" />
+		</workers>
+	</project>	
+</symfony>
