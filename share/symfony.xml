@@ -1,0 +1,16 @@
+<?xml version="1.0" ?>
+<symfony>
+	<project>
+		<server path="/your/symfony/project1" port="8001" />
+		<workers>
+			<worker path="/your/symfony/project1" name="async" />
+		</workers>
+	</project>	
+
+	<project>
+		<server path="/your/symfony/project2" port="8002" />
+		<workers>
+			<worker path="/your/symfony/project2" name="async" />
+		</workers>
+	</project>	
+</symfony>
