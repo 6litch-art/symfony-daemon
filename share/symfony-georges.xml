@@ -1,9 +1,9 @@
 <?xml version="1.0" ?>
 <symfony>
-	<project>
-		<server path="/var/www/chapaland.com/www" port="8001" />
-		<workers>
-			<worker path="/var/www/chapaland.com/www" transport="async" />
-		</workers>
-	</project>
+	<application path="/var/www/chapaland.com/www" port="8001">
+	   <cron name="cleanup" spec="50 23 * * *" cmd="symfony console app:comment:cleanup" />
+	   <cron name="cleanup2" spec="50 23 * * *" cmd="symfony console app:comment:cleanup" />
+	   <worker transport="async" />
+	   <worker transport="async2" />
+	</application>
 </symfony>

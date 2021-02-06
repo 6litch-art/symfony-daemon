@@ -1,5 +1,8 @@
 #! /usr/bin/python3.7
 
+import tempfile
+from crontab import CronTab
+
 import os
 import argparse
 import subprocess
@@ -21,11 +24,11 @@ def send_command(cmdlist, **kwargs):
     pidfile = kwargs.get("pidfile", None);
 
     cwd     = kwargs.get("cwd", None);
-    wd = os.getcwd()
+    wd      = os.getcwd()
     os.chdir(cwd)
 
     stdout  = kwargs.get("stdout", subprocess.PIPE);
-    stderr  = kwargs.get("stderr", subprocess.PIPE);
+    stderr  = kwargs.get("stderr", stdout);
     if(type(stdout) == str): stdout = open(stdout, "w+");
     if(type(stderr) == str): stderr = open(stderr, "w+");
 
@@ -44,16 +47,33 @@ def send_command(cmdlist, **kwargs):
 
 def parse_xml(xmlfile):
 
-    d = {"server": [], "worker": []};
+    d = {};
     tree = etree.parse(xmlfile)
 
-    for server in tree.xpath("/symfony/project/server"):
-        d["server"].append({"path":server.get("path"), "port":server.get("port")});
+    for app in tree.xpath("//symfony/application"):
 
-    for worker in tree.xpath("/symfony/project/workers/worker"):
-        d["worker"].append({"path":worker.get("path"), "transport":worker.get("transport")});
+        path = app.get("path");
+        if(path in d):
+            print("This application already exists.. "+path, file=sys.stderr);
+            exit(1);
+
+        d[path] = {};
+        d[path]["port"]   = app.get("port");
+
+        d[path]["workers"] = [];
+        for worker in app.xpath("worker"):
+            d[path]["workers"].append({"transport": worker.get("transport")});
+
+        d[path]["crontab"] = [];
+        for cron in app.xpath("cron"):
+            d[path]["crontab"].append({"name": cron.get("name"), "spec": cron.get("spec"), "cmd": cron.get("cmd")});
 
     return d;
+
+def mktemp(**kwargs):
+    prefix=kwargs.get("prefix","");
+    suffix=kwargs.get("suffix","");
+    return tempfile._get_default_tempdir() + "/" + prefix + next(tempfile._get_candidate_names()) + suffix;
 
 if __name__ == "__main__":
 
@@ -61,36 +81,61 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str,
                         default="/etc/symfony.xml",
                         help='Provide XML configuration file')
-    parser.add_argument('--pidfile', type=str, default=None,
+    parser.add_argument('--pidfile', type=str, default=mktemp(prefix="symfony-", suffix=".pid"),
                         help='Provide PID file for daemonize subprocess')
+    parser.add_argument('--cronfile', type=str, default=mktemp(prefix="symfony-", suffix=".cron"),
+                        help='Provide crontab file location')
 
     args = parser.parse_args()
     symfony = parse_xml(args.config);
 
     pidfile = args.pidfile;
-    if(pidfile): pidfile = open(pidfile,"w");
-    if(pidfile): pidfile.write(str(os.getpid()));
+    print(pidfile);
+    if(type(pidfile) == str): pidfile = open(pidfile,"w");
+
+    cronfile = args.cronfile;
+    if(type(cronfile) == str): cronfile = open(cronfile,"w");
 
     print(Fore.MAGENTA + "-- Symfony Autoserve v"+__VERSION__+Style.RESET_ALL);
     print(Fore.GREEN + "-- Project Directory: "+Style.RESET_ALL + __ROOTDIR__);
     print(Fore.GREEN + "-- XML Configuration File: "+Style.RESET_ALL + args.config);
-    if(pidfile): print(Fore.GREEN + "-- Writing PID file here: "+ Style.RESET_ALL+ args.pidfile)
+    if(pidfile): print(Fore.GREEN + "-- Writing PID here: "+ Style.RESET_ALL+ pidfile.name);
+    if(cronfile): print(Fore.GREEN + "-- Writing crontab here: "+ Style.RESET_ALL+ cronfile.name);
 
-    print(Fore.GREEN + "-- Server request found:"+ Style.RESET_ALL)
+    print(Fore.MAGENTA + "-- Starting server(s):"+ Style.RESET_ALL)
+    if(pidfile): pidfile.write(str(os.getpid()));
+
     slist = [];
-    for server in symfony["server"]:
-        slist += send_command([
-            "symfony serve --port " + server["port"]
-        ], cwd=server["path"], pidfile=pidfile, stdout="symfony.log", stderr="symfony.log");
-        print("   * Path:"+server["path"]+ " (symfony.log stored into it); Port:"+server["port"]+"; PID: ["+str(slist[-1].pid)+"]");
+    for path in symfony:
 
-    print(Fore.GREEN + "-- Async worker request found:"+ Style.RESET_ALL)
-    wlist = [];
-    for worker in symfony["worker"]:
-        wlist += send_command([
-            "symfony console messenger:consume " + worker["transport"] + " -vv"
-        ], cwd=worker["path"], pidfile=pidfile, stdout="symfony-messenger.log", stderr="symfony-messenger.log");
-        print("   * Path:"+worker["path"]+ " (symfony-messenger.log stored into it); Transport:"+worker["transport"]+"; PID: ["+str(wlist[-1].pid)+"]");
+        port = symfony[path]["port"];
+        slist += send_command(
+            ["symfony serve --port " + port],
+            cwd=path, pidfile=pidfile,
+            stdout="symfony.log"
+        );
+        print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+Fore.GREEN+"Listening:"+Style.RESET_ALL+" https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+" ["+str(slist[-1].pid)+"]"+Fore.CYAN+" (logs stored into symfony.log)"+Style.RESET_ALL);
+
+        workers = symfony[path]["workers"];
+        print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL+str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into symfony-messenger.log)"+Style.RESET_ALL)
+        wlist = [];
+        for worker in workers:
+            wlist += send_command(
+                ["symfony console messenger:consume " + worker["transport"] + " -vv"],
+                cwd=path, pidfile=pidfile, stdout="symfony-messenger.log"
+            );
+
+        crontab = symfony[path]["crontab"];
+        print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL +str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into symfony-crontab.log)"+Style.RESET_ALL);
+        clist = [];
+        for cron in crontab:
+            cronfile.write(cron["spec"]+"\t"+cron["cmd"]+"\n");
+        cronfile.close();
+
+        wd = os.getcwd();
+        os.chdir(path);
+        cron = CronTab(user="www-data", tabfile=cronfile.name, log="symfony-crontab.log")
+        os.chdir(wd);
 
     if(pidfile):
          pidfile.close();
@@ -105,19 +150,19 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     time.sleep(0.5);
 
-    # Check if servers is running
-    print(Fore.GREEN + "-- Server daemon(s) running: " + str([p.pid for p in slist]) + Style.RESET_ALL)
-    for p in slist:
-        poll = p.poll()
-        if not poll is None:
-            print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+    # # Check if apps is running
+    # print(Fore.GREEN + "-- Server daemon(s) running: " + str([p.pid for p in slist]) + Style.RESET_ALL)
+    # for p in slist:
+    #     poll = p.poll()
+    #     if not poll is None:
+    #         print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
 
-    # Check if workers is running
-    print(Fore.GREEN + "-- Worker daemon(s) running: " + str([p.pid for p in wlist]) + Style.RESET_ALL)
-    for p in wlist:
-        poll = p.poll()
-        if not poll is None:
-            print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+    # # Check if workers is running
+    # print(Fore.GREEN + "-- Worker daemon(s) running: " + str([p.pid for p in wlist]) + Style.RESET_ALL)
+    # for p in wlist:
+    #     poll = p.poll()
+    #     if not poll is None:
+    #         print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
 
     print('   * Press Ctrl+C to exit')
 
