@@ -19,18 +19,17 @@ RUN_MODE="daemons"
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 NAME="symfony-autoserve"
+SUBNAME="symfony"
 USER="www-data"
 GROUP="www-data"
 DESC="Symfony Autoserve + Consumer"
 DAEMON="$(which symfony-autoserve)"
-DAEMONOPTS="--config /etc/symfony/symfony-autoserve.xml"
+DAEMONOPTS="--config /etc/symfony.xml"
 PIDDIR="/var/run/$NAME"
 PIDFILE="$PIDDIR/$NAME.pid"
+PIDFILE_CHILDREN="$PIDDIR/$NAME.child.pid"
 LOGDIR="/var/log/$NAME"
 LOGFILE="$LOGDIR/$NAME.log"
-
-# logdir
-mkdir -p $LOGDIR
 
 # clear conflicting settings from the environment
 unset TMPDIR
@@ -43,18 +42,30 @@ test -x $DAEMON || exit 0
 case "$1" in
     start)
         log_daemon_msg "Starting $DESC"
+
         # Make sure we have our PIDDIR and LOGDIR, even if they're on a tmpfs.
         install -o root -g root -m 755 -d $PIDDIR
         install -o root -g root -m 755 -d $LOGDIR
 
+	mkdir -p $LOGDIR 2> /dev/null
+	chown www-data:www-data -R $LOGDIR 2> /dev/null
+	chmod 755 -R $LOGDIR 2> /dev/null
+	chown www-data:www-data -R $PIDFILE 2> /dev/null
+	chmod 755 -R $PIDFILE 2> /dev/null
+	chown www-data:www-data -R $PIDFILE_CHILDREN 2> /dev/null
+	chmod 755 -R $PIDFILE_CHILDREN 2> /dev/null
+	chown www-data:www-data -R $PIDDIR 2> /dev/null
+	chmod 755 -R $PIDDIR 2> /dev/null
+
         if [ "$RUN_MODE" != "inetd" ]; then
             log_progress_msg "$NAME"
-            if ! start-stop-daemon --start --quiet --oknodo --chuid "$USER:$GROUP" --background --make-pidfile --pidfile $PIDFILE --no-close --startas $DAEMON -- $DAEMONOPTS >> $LOGFILE 2>&1; then
+            if ! start-stop-daemon --start --quiet --oknodo --chuid "$USER:$GROUP" --pidfile $PIDFILE --background --no-close --startas $DAEMON -- $DAEMONOPTS --pidfile $PIDFILE_CHILDREN >> $LOGFILE 2>&1; then
                 log_end_msg 1
                 exit 1
             fi
             # Change the log permissions.
             chown -R $USER:adm $LOGDIR
+
         fi
 
         log_end_msg 0
@@ -64,6 +75,7 @@ case "$1" in
 
         if [ "$RUN_MODE" != "inetd" ]; then
             log_progress_msg "$NAME"
+
             start-stop-daemon --stop --quiet --oknodo --retry 10 --pidfile $PIDFILE
 
             # Wait a little and remove stale PID file
@@ -73,6 +85,21 @@ case "$1" in
                 # Stale PID file (process was succesfully stopped).
                 rm -f $PIDFILE
             fi
+
+	    # Delete pidfile children..
+            if [ -f $PIDFILE_CHILDREN ]; then
+
+		for PID in $(cat $PIDFILE_CHILDREN); do
+			[ -z "$(ps aux | awk -v PID=$PID USER=$USER '{ if ($1==USER && $2==PID) {print $0}}')" ] && kill -9 $PID
+		done
+
+		if [ ! ps h `cat $PIDFILE_CHILDREN` > /dev/null
+	        then
+                	# Stale PID file (process was succesfully stopped).
+                	rm -f $PIDFILE_CHILDREN
+	        fi
+	    fi
+
         fi
 
         log_end_msg 0

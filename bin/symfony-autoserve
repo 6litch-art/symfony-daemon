@@ -15,14 +15,30 @@ __ROOTDIR__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 def wait(plist = []):
     return [p.wait() for p in plist];
 
-def send_command(cmdlist, verbose = False):
+def send_command(cmdlist, **kwargs):
+
+    verbose = kwargs.get("verbose", False);
+    pidfile = kwargs.get("pidfile", None);
+
+    cwd     = kwargs.get("cwd", None);
+    wd = os.getcwd()
+    os.chdir(cwd)
+
+    stdout  = kwargs.get("stdout", subprocess.PIPE);
+    stderr  = kwargs.get("stderr", subprocess.PIPE);
+    if(type(stdout) == str): stdout = open(stdout, "w+");
+    if(type(stderr) == str): stderr = open(stderr, "w+");
 
     plist = [];
     for cmd in cmdlist:
-        if(type(cmd) == list): cmd = ' && '.join(cmd);
-        plist.append(subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True));
+        plist.append(subprocess.Popen(cmd if type(cmd) == list else cmd.split(' '), stdout=stdout, stderr=stderr, cwd=cwd));
 
-        if(verbose): print("@subprocess: "+cmd + "; @return "+plist.end().communicate()[0].strip().decode("utf-8"));
+        if(verbose): print("@subprocess: "+ " ".join(cmd) + "; @return "+plist[-1].communicate()[0].strip().decode("utf-8"));
+        if(pidfile): pidfile.write(" "+str(plist[-1].pid));
+
+    stdout.close();
+    stderr.close();
+    os.chdir(wd)
 
     return plist;
 
@@ -45,29 +61,39 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str,
                         default="/etc/symfony.xml",
                         help='Provide XML configuration file')
+    parser.add_argument('--pidfile', type=str, default=None,
+                        help='Provide PID file for daemonize subprocess')
 
     args = parser.parse_args()
     symfony = parse_xml(args.config);
 
+    pidfile = args.pidfile;
+    if(pidfile): pidfile = open(pidfile,"w");
+    if(pidfile): pidfile.write(str(os.getpid()));
+
     print(Fore.MAGENTA + "-- Symfony Autoserve v"+__VERSION__+Style.RESET_ALL);
     print(Fore.GREEN + "-- Project Directory: "+Style.RESET_ALL + __ROOTDIR__);
     print(Fore.GREEN + "-- XML Configuration File: "+Style.RESET_ALL + args.config);
+    if(pidfile): print(Fore.GREEN + "-- Writing PID file here: "+ Style.RESET_ALL+ args.pidfile)
 
     print(Fore.GREEN + "-- Server request found:"+ Style.RESET_ALL)
     slist = [];
     for server in symfony["server"]:
         slist += send_command([
-            ["cd " + server["path"], "symfony serve --port " + server["port"] + " > symfony.log 2> symfony.log"]
-        ]);
+            "symfony serve --port " + server["port"]
+        ], cwd=server["path"], pidfile=pidfile, stdout="symfony.log", stderr="symfony.log");
         print("   * Path:"+server["path"]+ " (symfony.log stored into it); Port:"+server["port"]+"; PID: ["+str(slist[-1].pid)+"]");
 
     print(Fore.GREEN + "-- Async worker request found:"+ Style.RESET_ALL)
     wlist = [];
     for worker in symfony["worker"]:
         wlist += send_command([
-            ["cd " + worker["path"], "symfony console messenger:consume " + worker["transport"] + " -vv > symfony-messenger.log 2> symfony-messenger.log"]
-        ]);
+            "symfony console messenger:consume " + worker["transport"] + " -vv"
+        ], cwd=worker["path"], pidfile=pidfile, stdout="symfony-messenger.log", stderr="symfony-messenger.log");
         print("   * Path:"+worker["path"]+ " (symfony-messenger.log stored into it); Transport:"+worker["transport"]+"; PID: ["+str(wlist[-1].pid)+"]");
+
+    if(pidfile):
+         pidfile.close();
 
     def signal_handler(sig, frame):
         print('You pressed Ctrl+C.. Killing Symfony services..')

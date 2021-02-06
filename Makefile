@@ -15,12 +15,11 @@ rabbitmq:
 redis:
 	@apt-get install -y redis-server
 	@npm install -g redis-commander
-	@ln -sf $(SYMFONY_AUTOSERVE)/etc/init.d/redis-commander /etc/init.d
+	@cp -p $(SYMFONY_AUTOSERVE)/etc/init.d/redis-commander /etc/init.d
 	@chmod 755 /etc/init.d/redis-commander
-	@systemctl daemon-reload
-	@/etc/init.d/redis-commander restart
 
 install:
-	@ln -sf $(SYMFONY_AUTOSERVE)/etc/init.d/symfony-autoserve /etc/init.d
+	@cp -p  $(SYMFONY_AUTOSERVE)/bin/symfony-autoserve /usr/local/bin
+	@cp -p $(SYMFONY_AUTOSERVE)/etc/init.d/symfony-autoserve /etc/init.d
+	@cp -pn $(SYMFONY_AUTOSERVE)/share/symfony.xml /etc/symfony.xml
 	@chmod 755 /etc/init.d/symfony-autoserve
-	@cp -p $(SYMFONY_AUTOSERVE)/share/symfony.xml /etc/symfony.xml
