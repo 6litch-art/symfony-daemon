@@ -80,21 +80,16 @@ case "$1" in
 
             # Wait a little and remove stale PID file
             sleep 1
-            if [ -f $PIDFILE ] && ! ps h `cat $PIDFILE` > /dev/null
-            then
-                # Stale PID file (process was succesfully stopped).
-                rm -f $PIDFILE
-            fi
+            [[ -f $PIDFILE && ! ps h `cat $PIDFILE` > /dev/null ]] && rm -f $PIDFILE
 
 	    # Delete pidfile children..
             if [ -f $PIDFILE_CHILDREN ]; then
 
 		for PID in $(cat $PIDFILE_CHILDREN); do
-			[ -z "$(ps aux | awk -v PID=$PID USER=$USER '{ if ($1==USER && $2==PID) {print $0}}')" ] && kill -9 $PID
+			[ -z "$(ps aux | awk -v PID=$PID -v USER=$USER '{ if ($1==USER && $2==PID) {print $0}}')" ] && kill -9 $PID 2> /dev/null
 		done
 
-		if [ ! ps h `cat $PIDFILE_CHILDREN` > /dev/null
-	        then
+		if [ ! ps h `cat $PIDFILE_CHILDREN` > /dev/null ]; then
                 	# Stale PID file (process was succesfully stopped).
                 	rm -f $PIDFILE_CHILDREN
 	        fi

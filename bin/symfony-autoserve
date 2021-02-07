@@ -16,6 +16,29 @@ __VERSION__ = "1.0.0";
 __ROOTDIR__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 
 def wait(plist = []):
+
+    # Check if apps is running
+    print(Fore.GREEN + "-- Server daemon(s) running: " + str([p.pid for p in slist]) + Style.RESET_ALL)
+    for p in slist:
+        poll = p.poll()
+        if not poll is None:
+            print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+
+    # Check if workers is running
+    print(Fore.GREEN + "-- Worker daemon(s) running: " + str([p.pid for p in wlist]) + Style.RESET_ALL)
+    for p in wlist:
+        poll = p.poll()
+        if not poll is None:
+            print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+
+    while True:
+	if(len(wlist)): break;
+	for p in wlist:
+	   poll = p.poll()
+           if not poll is None:
+              print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+
+    print('   * Press Ctrl+C to exit');
     return [p.wait() for p in plist];
 
 def send_command(cmdlist, **kwargs):
@@ -27,8 +50,8 @@ def send_command(cmdlist, **kwargs):
     wd      = os.getcwd()
     os.chdir(cwd)
 
-    stdout  = kwargs.get("stdout", subprocess.PIPE);
-    stderr  = kwargs.get("stderr", stdout);
+    stdout  = kwargs.get("stdout", None);
+    stderr  = kwargs.get("stderr", None);
     if(type(stdout) == str): stdout = open(stdout, "w+");
     if(type(stderr) == str): stderr = open(stderr, "w+");
 
@@ -39,8 +62,8 @@ def send_command(cmdlist, **kwargs):
         if(verbose): print("@subprocess: "+ " ".join(cmd) + "; @return "+plist[-1].communicate()[0].strip().decode("utf-8"));
         if(pidfile): pidfile.write(" "+str(plist[-1].pid));
 
-    stdout.close();
-    stderr.close();
+    if(stdout): stdout.close();
+    if(stderr): stderr.close();
     os.chdir(wd)
 
     return plist;
@@ -112,9 +135,9 @@ if __name__ == "__main__":
         slist += send_command(
             ["symfony serve --port " + port],
             cwd=path, pidfile=pidfile,
-            stdout="symfony.log"
+            stdout="symfony-server.log"
         );
-        print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+Fore.GREEN+"Listening:"+Style.RESET_ALL+" https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+" ["+str(slist[-1].pid)+"]"+Fore.CYAN+" (logs stored into symfony.log)"+Style.RESET_ALL);
+        print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+Fore.GREEN+"Listening:"+Style.RESET_ALL+" https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+" ["+str(slist[-1].pid)+"]"+Fore.CYAN+" (logs stored into symfony-server.log)"+Style.RESET_ALL);
 
         workers = symfony[path]["workers"];
         print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL+str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into symfony-messenger.log)"+Style.RESET_ALL)
@@ -149,21 +172,5 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
     time.sleep(0.5);
-
-    # # Check if apps is running
-    # print(Fore.GREEN + "-- Server daemon(s) running: " + str([p.pid for p in slist]) + Style.RESET_ALL)
-    # for p in slist:
-    #     poll = p.poll()
-    #     if not poll is None:
-    #         print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
-
-    # # Check if workers is running
-    # print(Fore.GREEN + "-- Worker daemon(s) running: " + str([p.pid for p in wlist]) + Style.RESET_ALL)
-    # for p in wlist:
-    #     poll = p.poll()
-    #     if not poll is None:
-    #         print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
-
-    print('   * Press Ctrl+C to exit')
 
     wait(slist+wlist);
