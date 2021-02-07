@@ -15,34 +15,56 @@ import time
 __VERSION__ = "1.0.0";
 __ROOTDIR__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 
-def wait(slist = [], wlist = []):
+def wait(plist = [], **kwargs):
 
-    plist = wlist + slist;
-    def signal_handler(sig, frame):
-        print('You pressed Ctrl+C.. Killing Symfony services..')
-        for p in slist:
-            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-        for p in wlist:
-            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+    timeout  = kwargs.get("timeout",  5);
+    attempts = kwargs.get("attempts", 10);
+    pidfile  = kwargs.get("pidfile",  None);
+    cwd      = kwargs.get("cwd",  ".");
+    verbose  = kwargs.get("verbose",  False);
 
-    signal.signal(signal.SIGINT, signal_handler)
+    plist_attempt = [];
+    for p in plist:
+        plist_attempt.append(attempts);
+
+    plist_crash = [];
+    for p in plist:
+        plist_crash.append(False);
+
     time.sleep(0.5);
+    while True:
 
-    # Check if apps is running
-    print(Fore.GREEN + "-- Server daemon(s) running: " + str([p.pid for p in slist]) + Style.RESET_ALL)
-    for p in slist:
-        poll = p.poll()
-        if not poll is None:
-            print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+        # If all attempt are zeros
+        if all(attempt == 0 for attempt in plist_attempt):
+            print(Fore.RED + "   * All servers crashed, too many attempts, abort..");
+            break;
 
-    # Check if workers is running
-    print(Fore.GREEN + "-- Worker daemon(s) running: " + str([p.pid for p in wlist]) + Style.RESET_ALL)
-    for p in wlist:
-        poll = p.poll()
-        if not poll is None:
-            print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+        for k in range(len(plist)):
 
-    print('   * Press Ctrl+C to exit');
+            p = plist[k]["process"];
+            poll = p.poll();
+
+            if not poll is None:
+
+                if(not plist_crash[k]):
+                    print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+                    plist_crash[k] = True;
+
+                if(plist_attempt[k]):
+
+                    pidfile = open(pidfile.name, "w+")
+                    plist[k]["process"] = send_command([p.args], pidfile=pidfile, verbose=plist[k]["verbose"], cwd=plist[k]["cwd"], stdout=plist[k]["stdout"], stderr=plist[k]["stderr"])[0]["process"];
+                    pidfile.close();
+
+                    plist_attempt[k] = plist_attempt[k] - 1;
+                    print(Fore.YELLOW + "     Attempt to restart [" + str(p.pid) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "] ("+str(attempts-plist_attempt[k])+"/"+str(attempts)+")" + Style.RESET_ALL);
+                    plist_crash[k] = False;
+
+
+        # Wait before next attempt
+        time.sleep(timeout)
+        if timeout <= 0: break;
+
     return [p.wait() for p in plist];
 
 def send_command(cmdlist, **kwargs):
@@ -55,19 +77,19 @@ def send_command(cmdlist, **kwargs):
     os.chdir(cwd)
 
     stdout  = kwargs.get("stdout", None);
-    stderr  = kwargs.get("stderr", None);
-    if(type(stdout) == str): stdout = open(stdout, "w+");
-    if(type(stderr) == str): stderr = open(stderr, "w+");
+    stderr  = kwargs.get("stderr", stdout);
 
     plist = [];
     for cmd in cmdlist:
-        plist.append(subprocess.Popen(cmd if type(cmd) == list else cmd.split(' '), stdout=stdout, stderr=stderr, cwd=cwd));
+        p = subprocess.Popen(cmd if type(cmd) == list else cmd.split(' '),
+                stdout=open(stdout, "w+") if type(stdout) == str else stdout,
+                stderr=open(stderr, "w+") if type(stderr) == str else stderr, cwd=cwd);
 
-        if(verbose): print("@subprocess: "+ " ".join(cmd) + "; @return "+plist[-1].communicate()[0].strip().decode("utf-8"));
-        if(pidfile): pidfile.write(" "+str(plist[-1].pid));
+        plist.append({"process":p, "stdout":stdout,"stderr":stderr, "cwd":cwd, "pidfile":pidfile, "verbose":verbose});
 
-    if(stdout): stdout.close();
-    if(stderr): stderr.close();
+        if(verbose): print("@subprocess: "+ " ".join(cmd) + "; @return "+plist[-1]["process"].communicate()[0].strip().decode("utf-8"));
+        if(pidfile): pidfile.write(" "+str(plist[-1]["process"].pid));
+
     os.chdir(wd)
 
     return plist;
@@ -112,12 +134,18 @@ if __name__ == "__main__":
                         help='Provide PID file for daemonize subprocess')
     parser.add_argument('--cronfile', type=str, default=mktemp(prefix="symfony-", suffix=".cron"),
                         help='Provide crontab file location')
+    parser.add_argument('--attempt', type=int, default=10,
+                        help='Number of reconnection before giving up')
+    parser.add_argument('--timeout', type=int, default=4,
+                        help='Timeout before retrying to connect')
 
     args = parser.parse_args()
     symfony = parse_xml(args.config);
 
+    attempt = args.attempt;
+    timeout = args.timeout;
+
     pidfile = args.pidfile;
-    print(pidfile);
     if(type(pidfile) == str): pidfile = open(pidfile,"w");
 
     cronfile = args.cronfile;
@@ -132,22 +160,21 @@ if __name__ == "__main__":
     print(Fore.MAGENTA + "-- Starting server(s):"+ Style.RESET_ALL)
     if(pidfile): pidfile.write(str(os.getpid()));
 
-    slist = [];
+    plist = [];
     for path in symfony:
 
         port = symfony[path]["port"];
-        slist += send_command(
+        plist += send_command(
             ["symfony serve --port " + port],
             cwd=path, pidfile=pidfile,
             stdout="symfony-server.log"
         );
-        print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+Fore.GREEN+"Listening:"+Style.RESET_ALL+" https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+" ["+str(slist[-1].pid)+"]"+Fore.CYAN+" (logs stored into symfony-server.log)"+Style.RESET_ALL);
+        print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+Fore.GREEN+"Listening:"+Style.RESET_ALL+" https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+" ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into symfony-server.log)"+Style.RESET_ALL);
 
         workers = symfony[path]["workers"];
         print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL+str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into symfony-messenger.log)"+Style.RESET_ALL)
-        wlist = [];
         for worker in workers:
-            wlist += send_command(
+            plist += send_command(
                 ["symfony console messenger:consume " + worker["transport"] + " -vv"],
                 cwd=path, pidfile=pidfile, stdout="symfony-messenger.log"
             );
@@ -167,4 +194,13 @@ if __name__ == "__main__":
     if(pidfile):
          pidfile.close();
 
-    wait(slist,wlist);
+    def signal_handler(sig, frame):
+        print('You pressed Ctrl+C.. Killing Symfony services..')
+        for p in plist:
+            os.killpg(os.getpgid(p["process"].pid), signal.SIGTERM)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    print('   * Press Ctrl+C to exit');
+
+    print(Fore.MAGENTA + "-- Daemon status:"+ Style.RESET_ALL)
+    wait(plist, attempt=attempt, timeout=timeout, cwd=path, pidfile=pidfile);
