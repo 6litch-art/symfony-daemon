@@ -235,11 +235,12 @@ if __name__ == "__main__":
         print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+
               Fore.GREEN+"Listening:"+Style.RESET_ALL+
             " https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+
-            " ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into symfony-server.log; Warmup time: "+warmup+"s)"+Style.RESET_ALL);
+            " ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into symfony-server.log)"+Style.RESET_ALL);
         print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL + str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into symfony-messenger.log)"+Style.RESET_ALL)
         print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into symfony-crontab.log)"+Style.RESET_ALL);
 
         # Wait some time before starting workers
+        print(Fore.CYAN  + "   * Warmup time: "+str(warmup)+"s, please wait.." + Style.RESET_ALL);
         time.sleep(warmup);
 
         #
