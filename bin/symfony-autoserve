@@ -176,7 +176,7 @@ if __name__ == "__main__":
                         help='Provide XML configuration file')
     parser.add_argument('--pidfile', type=str, default=mktemp(prefix="symfony-", suffix=".pid"),
                         help='Provide PID file for daemonize subprocess')
-    parser.add_argument('--attempt', type=int, default=10,
+    parser.add_argument('--attempts', type=int, default=10,
                         help='Number of reconnection before giving up')
     parser.add_argument('--timeout', type=int, default=5,
                         help='Timeout before retrying to connect')
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     #
     symfony   = parse_xml(args.config);
     verbosity = args.verbosity;
-    attempt   = args.attempt;
+    attempts   = args.attempts;
     timeout   = args.timeout;
     warmup    = args.warmup;
 
@@ -281,4 +281,4 @@ if __name__ == "__main__":
     # Wait for the process to finish + resubmit commands if necessary
     #
     if(verbosity): print(Fore.MAGENTA + "-- Daemon status:"+ Style.RESET_ALL)
-    wait(plist, attempt=attempt, timeout=timeout, cwd=path, pidfile=pidfile);
+    wait(plist, attempts=attempts, timeout=timeout, cwd=path, pidfile=pidfile);
