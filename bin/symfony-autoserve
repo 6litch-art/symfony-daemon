@@ -23,7 +23,7 @@ def wait(plist = [], **kwargs):
     attempts = kwargs.get("attempts", 10);
     pidfile  = kwargs.get("pidfile",  None);
     cwd      = kwargs.get("cwd",  ".");
-    verbose  = kwargs.get("verbose",  False);
+    verbosity  = kwargs.get("verbosity",  False);
 
     plist_attempt = [];
     for p in plist:
@@ -56,7 +56,7 @@ def wait(plist = [], **kwargs):
                     plist[k]["next"] = datetime.strptime(str(cron.get_next(datetime)), "%Y-%m-%d %H:%M:%S");
 
                 # Timeout, command needs to be submitted
-                if (verbose):
+                if (verbosity):
                     print(Fore.YELLOW+ "     Cronjob waiting [" + ' '.join(cmd) + "]:"+Style.RESET_ALL+" Next iteration at " + str(plist[k]["next"]) + Style.RESET_ALL);
 
                 if ((plist[k]["next"] - now) < timedelta(0)):
@@ -64,35 +64,35 @@ def wait(plist = [], **kwargs):
 
                     # If command still running.. kill it first..
                     if(poll is None):
-                        print(Fore.RED+"     Cronjob is about to be executed.. killing current process"+Style.RESET_ALL);
+                        if(verbosity): print(Fore.RED+"     Cronjob is about to be executed.. killing current process"+Style.RESET_ALL);
                         plist[k]["process"].terminate();
                         time.sleep(timeout);
                         plist[k]["process"].kill();
 
                     # Resubmit command..
                     pidfile = open(pidfile.name, "w+")
-                    plist[k]["process"] = send_command([cmd], pidfile=pidfile, verbose=plist[k]["verbose"], cwd=plist[k]["cwd"], stdout=plist[k]["stdout"], stderr=plist[k]["stderr"])[0]["process"];
+                    plist[k]["process"] = send_command([cmd], pidfile=pidfile, verbosity=plist[k]["verbosity"], cwd=plist[k]["cwd"], stdout=plist[k]["stdout"], stderr=plist[k]["stderr"])[0]["process"];
                     pidfile.close();
 
                     # Notify and prepare for next iteration
-                    print(Fore.GREEN+ "     Cronjob launched [" + str(plist[k]["cmd"]) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "]" + Style.RESET_ALL);
+                    if(verbosity): print(Fore.GREEN+ "     Cronjob launched [" + str(plist[k]["cmd"]) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "]" + Style.RESET_ALL);
                     del plist[k]["next"];
 
             # Resubmit if crashed..
             elif not poll is None:
 
                 if(not plist_crash[k]):
-                    print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+                    if(verbosity): print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
                     plist_crash[k] = True;
 
                 if(plist_attempt[k]):
 
                     pidfile = open(pidfile.name, "w+")
-                    plist[k]["process"] = send_command([p.args], pidfile=pidfile, verbose=plist[k]["verbose"], cwd=plist[k]["cwd"], stdout=plist[k]["stdout"], stderr=plist[k]["stderr"])[0]["process"];
+                    plist[k]["process"] = send_command([p.args], pidfile=pidfile, verbosity=plist[k]["verbosity"], cwd=plist[k]["cwd"], stdout=plist[k]["stdout"], stderr=plist[k]["stderr"])[0]["process"];
                     pidfile.close();
 
                     plist_attempt[k] = plist_attempt[k] - 1;
-                    print(Fore.YELLOW + "     Attempt to restart [" + str(p.pid) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "] ("+str(attempts-plist_attempt[k])+"/"+str(attempts)+")" + Style.RESET_ALL);
+                    if(verbosity): print(Fore.YELLOW + "     Attempt to restart [" + str(p.pid) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "] ("+str(attempts-plist_attempt[k])+"/"+str(attempts)+")" + Style.RESET_ALL);
                     plist_crash[k] = False;
 
 
@@ -104,7 +104,7 @@ def wait(plist = [], **kwargs):
 
 def send_command(cmdlist, **kwargs):
 
-    verbose = kwargs.get("verbose", False);
+    verbosity = kwargs.get("verbosity", False);
     pidfile = kwargs.get("pidfile", None);
 
     cwd     = kwargs.get("cwd", None);
@@ -123,12 +123,12 @@ def send_command(cmdlist, **kwargs):
 
         plist.append({
             "process":p, "stdout":stdout,"stderr":stderr,
-            "cwd":cwd, "pidfile":pidfile, "verbose":verbose,
+            "cwd":cwd, "pidfile":pidfile, "verbosity":verbosity,
             "cron":croniter.croniter(spec, datetime.now()) if spec else None
         });
 
 
-        if(verbose): print("@subprocess: "+ " ".join(cmd) + "; @return "+plist[-1]["process"].communicate()[0].strip().decode("utf-8"));
+        if(verbosity): print("@subprocess: "+ " ".join(cmd) + "; @return "+plist[-1]["process"].communicate()[0].strip().decode("utf-8"));
         if(pidfile): pidfile.write(" "+str(plist[-1]["process"].pid));
 
     os.chdir(wd)
@@ -167,6 +167,9 @@ def mktemp(**kwargs):
 
 if __name__ == "__main__":
 
+    #
+    # Program usage parser
+    #
     parser = argparse.ArgumentParser(description='Symfony Autoserve Arguments')
     parser.add_argument('--config', type=str,
                         default="/etc/symfony.xml",
@@ -175,18 +178,29 @@ if __name__ == "__main__":
                         help='Provide PID file for daemonize subprocess')
     parser.add_argument('--attempt', type=int, default=10,
                         help='Number of reconnection before giving up')
-    parser.add_argument('--timeout', type=int, default=4,
+    parser.add_argument('--timeout', type=int, default=5,
                         help='Timeout before retrying to connect')
+    parser.add_argument('--warmup', type=int, default=5,
+                        help='Server warmup timeout')
+    parser.add_argument('--verbosity', type=bool, default=False,
+                        help='Make program more verbose')
+    args      = parser.parse_args()
 
-    args = parser.parse_args()
-    symfony = parse_xml(args.config);
+    #
+    # Parse XML file and prepare the main variables
+    #
+    symfony   = parse_xml(args.config);
+    verbosity = args.verbosity;
+    attempt   = args.attempt;
+    timeout   = args.timeout;
+    warmup    = args.warmup;
 
-    attempt = args.attempt;
-    timeout = args.timeout;
-
-    pidfile = args.pidfile;
+    pidfile   = args.pidfile;
     if(type(pidfile) == str): pidfile = open(pidfile,"w");
 
+    #
+    # Print out some important information for logging
+    #
     print(Fore.MAGENTA + "-- Symfony Autoserve v"+__VERSION__+Style.RESET_ALL);
     print(Fore.GREEN + "-- Project Directory: "+Style.RESET_ALL + __ROOTDIR__);
     print(Fore.GREEN + "-- XML Configuration File: "+Style.RESET_ALL + args.config);
@@ -195,52 +209,75 @@ if __name__ == "__main__":
     print(Fore.MAGENTA + "-- Starting server(s):"+ Style.RESET_ALL)
     if(pidfile): pidfile.write(str(os.getpid()));
 
+    #
+    # Loop over symfony server + start workers (message broker) + run crontab commands (e.g. cache)
+    #
     plist = [];
     for path in symfony:
 
-        # Handle server
+        #
+        # Prepare new application
+        #
         port = symfony[path]["port"];
+        workers = symfony[path]["workers"];
+        crontab = symfony[path]["crontab"];
+
+        #
+        # Starting server
+        #
         plist += send_command(
             ["symfony serve --port " + port],
             cwd=path, pidfile=pidfile,
-            stdout="symfony-server.log"
+            stdout="symfony-server.log", verbosity=verbosity
         );
+
+        # Print out some variable
         print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+
               Fore.GREEN+"Listening:"+Style.RESET_ALL+
             " https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+
-            " ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into symfony-server.log)"+Style.RESET_ALL);
-
-        time.sleep(1);
-
-        # Handle message broker
-        workers = symfony[path]["workers"];
+            " ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into symfony-server.log; Warmup time: "+warmup+"s)"+Style.RESET_ALL);
         print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL + str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into symfony-messenger.log)"+Style.RESET_ALL)
-        for worker in workers:
+        print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into symfony-crontab.log)"+Style.RESET_ALL);
+
+        # Wait some time before starting workers
+        time.sleep(warmup);
+
+        #
+        # Worker / Message consumer
+        #
+        for i in range(len(workers)):
+            worker = workers[i];
             plist += send_command(
                 ["symfony console messenger:consume " + worker["transport"] + " -vv"],
-                cwd=path, pidfile=pidfile, stdout="symfony-messenger.log"
+                cwd=path, pidfile=pidfile, stdout="symfony-messenger."+str(i)+".log", verbosity=verbosity
             );
 
-        # Handle CRONTAB
-        crontab = symfony[path]["crontab"];
-        print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into symfony-crontab.log)"+Style.RESET_ALL);
-        for cron in crontab:
-            print(cron["cmd"]);
+        #
+        # Run crontab commands
+        #
+        for i in range(len(crontab)):
+            cron = crontab[i];
             plist += send_command(
                 [cron["cmd"]], spec=cron["spec"],
-                cwd=path, pidfile=pidfile, stdout="symfony-crontab.log"
+                cwd=path, pidfile=pidfile, stdout="symfony-crontab."+str(i)+".log", verbosity=verbosity
             );
 
+    # Close PID file (this one will be updated later if required..)
     if(pidfile):
          pidfile.close();
 
+    #
+    # Catch signal interrupt
+    #
     def signal_handler(sig, frame):
         print('You pressed Ctrl+C.. Killing Symfony services..')
         for p in plist:
             os.killpg(os.getpgid(p["process"].pid), signal.SIGTERM)
-
     signal.signal(signal.SIGINT, signal_handler)
     print('   * Press Ctrl+C to exit');
 
-    print(Fore.MAGENTA + "-- Daemon status:"+ Style.RESET_ALL)
+    #
+    # Wait for the process to finish + resubmit commands if necessary
+    #
+    if(verbosity): print(Fore.MAGENTA + "-- Daemon status:"+ Style.RESET_ALL)
     wait(plist, attempt=attempt, timeout=timeout, cwd=path, pidfile=pidfile);
