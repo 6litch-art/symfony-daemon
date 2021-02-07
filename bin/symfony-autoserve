@@ -64,6 +64,7 @@ def wait(plist = [], **kwargs):
 
                     # If command still running.. kill it first..
                     if(poll is None):
+                        print(Fore.RED+"     Cronjob is about to be executed.. killing current process"+Style.RESET_ALL);
                         plist[k]["process"].terminate();
                         time.sleep(timeout);
                         plist[k]["process"].kill();
@@ -197,6 +198,7 @@ if __name__ == "__main__":
     plist = [];
     for path in symfony:
 
+        # Handle server
         port = symfony[path]["port"];
         plist += send_command(
             ["symfony serve --port " + port],
@@ -210,6 +212,7 @@ if __name__ == "__main__":
 
         time.sleep(1);
 
+        # Handle message broker
         workers = symfony[path]["workers"];
         print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL + str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into symfony-messenger.log)"+Style.RESET_ALL)
         for worker in workers:
@@ -218,9 +221,11 @@ if __name__ == "__main__":
                 cwd=path, pidfile=pidfile, stdout="symfony-messenger.log"
             );
 
+        # Handle CRONTAB
         crontab = symfony[path]["crontab"];
         print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into symfony-crontab.log)"+Style.RESET_ALL);
         for cron in crontab:
+            print(cron["cmd"]);
             plist += send_command(
                 [cron["cmd"]], spec=cron["spec"],
                 cwd=path, pidfile=pidfile, stdout="symfony-crontab.log"
