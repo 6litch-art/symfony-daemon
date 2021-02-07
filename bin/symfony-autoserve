@@ -1,7 +1,9 @@
 #! /usr/bin/python3.7
 
 import tempfile
-from crontab import CronTab
+import croniter
+from datetime import datetime
+from datetime import timedelta
 
 import os
 import argparse
@@ -42,9 +44,41 @@ def wait(plist = [], **kwargs):
         for k in range(len(plist)):
 
             p = plist[k]["process"];
+            cmd = p.args;
             poll = p.poll();
 
-            if not poll is None:
+            now = datetime.now();
+            cron = plist[k]["cron"];
+            if (cron):
+
+                # Determine next sched
+                if (not "next" in plist[k]):
+                    plist[k]["next"] = datetime.strptime(str(cron.get_next(datetime)), "%Y-%m-%d %H:%M:%S");
+
+                # Timeout, command needs to be submitted
+                if (verbose):
+                    print(Fore.YELLOW+ "     Cronjob waiting [" + ' '.join(cmd) + "]:"+Style.RESET_ALL+" Next iteration at " + str(plist[k]["next"]) + Style.RESET_ALL);
+
+                if ((plist[k]["next"] - now) < timedelta(0)):
+                    plist[k]["next"] = None;
+
+                    # If command still running.. kill it first..
+                    if(poll is None):
+                        plist[k]["process"].terminate();
+                        time.sleep(timeout);
+                        plist[k]["process"].kill();
+
+                    # Resubmit command..
+                    pidfile = open(pidfile.name, "w+")
+                    plist[k]["process"] = send_command([cmd], pidfile=pidfile, verbose=plist[k]["verbose"], cwd=plist[k]["cwd"], stdout=plist[k]["stdout"], stderr=plist[k]["stderr"])[0]["process"];
+                    pidfile.close();
+
+                    # Notify and prepare for next iteration
+                    print(Fore.GREEN+ "     Cronjob launched [" + str(plist[k]["cmd"]) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "]" + Style.RESET_ALL);
+                    del plist[k]["next"];
+
+            # Resubmit if crashed..
+            elif not poll is None:
 
                 if(not plist_crash[k]):
                     print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
@@ -76,6 +110,7 @@ def send_command(cmdlist, **kwargs):
     wd      = os.getcwd()
     os.chdir(cwd)
 
+    spec = kwargs.get("spec", None);
     stdout  = kwargs.get("stdout", None);
     stderr  = kwargs.get("stderr", stdout);
 
@@ -85,7 +120,12 @@ def send_command(cmdlist, **kwargs):
                 stdout=open(stdout, "w+") if type(stdout) == str else stdout,
                 stderr=open(stderr, "w+") if type(stderr) == str else stderr, cwd=cwd);
 
-        plist.append({"process":p, "stdout":stdout,"stderr":stderr, "cwd":cwd, "pidfile":pidfile, "verbose":verbose});
+        plist.append({
+            "process":p, "stdout":stdout,"stderr":stderr,
+            "cwd":cwd, "pidfile":pidfile, "verbose":verbose,
+            "cron":croniter.croniter(spec, datetime.now()) if spec else None
+        });
+
 
         if(verbose): print("@subprocess: "+ " ".join(cmd) + "; @return "+plist[-1]["process"].communicate()[0].strip().decode("utf-8"));
         if(pidfile): pidfile.write(" "+str(plist[-1]["process"].pid));
@@ -115,7 +155,7 @@ def parse_xml(xmlfile):
 
         d[path]["crontab"] = [];
         for cron in app.xpath("cron"):
-            d[path]["crontab"].append({"name": cron.get("name"), "spec": cron.get("spec"), "cmd": cron.get("cmd")});
+            d[path]["crontab"].append({"name": cron.get("name"), "cmd": cron.get("cmd"), "spec": cron.get("spec")});
 
     return d;
 
@@ -132,8 +172,6 @@ if __name__ == "__main__":
                         help='Provide XML configuration file')
     parser.add_argument('--pidfile', type=str, default=mktemp(prefix="symfony-", suffix=".pid"),
                         help='Provide PID file for daemonize subprocess')
-    parser.add_argument('--cronfile', type=str, default=mktemp(prefix="symfony-", suffix=".cron"),
-                        help='Provide crontab file location')
     parser.add_argument('--attempt', type=int, default=10,
                         help='Number of reconnection before giving up')
     parser.add_argument('--timeout', type=int, default=4,
@@ -148,14 +186,10 @@ if __name__ == "__main__":
     pidfile = args.pidfile;
     if(type(pidfile) == str): pidfile = open(pidfile,"w");
 
-    cronfile = args.cronfile;
-    if(type(cronfile) == str): cronfile = open(cronfile,"w");
-
     print(Fore.MAGENTA + "-- Symfony Autoserve v"+__VERSION__+Style.RESET_ALL);
     print(Fore.GREEN + "-- Project Directory: "+Style.RESET_ALL + __ROOTDIR__);
     print(Fore.GREEN + "-- XML Configuration File: "+Style.RESET_ALL + args.config);
     if(pidfile): print(Fore.GREEN + "-- Writing PID here: "+ Style.RESET_ALL+ pidfile.name);
-    if(cronfile): print(Fore.GREEN + "-- Writing crontab here: "+ Style.RESET_ALL+ cronfile.name);
 
     print(Fore.MAGENTA + "-- Starting server(s):"+ Style.RESET_ALL)
     if(pidfile): pidfile.write(str(os.getpid()));
@@ -169,10 +203,15 @@ if __name__ == "__main__":
             cwd=path, pidfile=pidfile,
             stdout="symfony-server.log"
         );
-        print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+Fore.GREEN+"Listening:"+Style.RESET_ALL+" https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+" ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into symfony-server.log)"+Style.RESET_ALL);
+        print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+
+              Fore.GREEN+"Listening:"+Style.RESET_ALL+
+            " https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+
+            " ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into symfony-server.log)"+Style.RESET_ALL);
+
+        time.sleep(1);
 
         workers = symfony[path]["workers"];
-        print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL+str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into symfony-messenger.log)"+Style.RESET_ALL)
+        print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL + str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into symfony-messenger.log)"+Style.RESET_ALL)
         for worker in workers:
             plist += send_command(
                 ["symfony console messenger:consume " + worker["transport"] + " -vv"],
@@ -180,16 +219,12 @@ if __name__ == "__main__":
             );
 
         crontab = symfony[path]["crontab"];
-        print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL +str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into symfony-crontab.log)"+Style.RESET_ALL);
-        clist = [];
+        print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into symfony-crontab.log)"+Style.RESET_ALL);
         for cron in crontab:
-            cronfile.write(cron["spec"]+"\t"+cron["cmd"]+"\n");
-        cronfile.close();
-
-        wd = os.getcwd();
-        os.chdir(path);
-        cron = CronTab(user="www-data", tabfile=cronfile.name, log="symfony-crontab.log")
-        os.chdir(wd);
+            plist += send_command(
+                [cron["cmd"]], spec=cron["spec"],
+                cwd=path, pidfile=pidfile, stdout="symfony-crontab.log"
+            );
 
     if(pidfile):
          pidfile.close();
