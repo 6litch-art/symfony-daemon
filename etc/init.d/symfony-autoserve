@@ -77,22 +77,29 @@ case "$1" in
             log_progress_msg "$NAME"
 
             start-stop-daemon --stop --quiet --oknodo --retry 10 --pidfile $PIDFILE
+	    echo "starttopdaemon" >  /opt/symfony-autoserve/tetst.log
 
             # Wait a little and remove stale PID file
             sleep 1
-            [[ -f $PIDFILE && ! ps h `cat $PIDFILE` > /dev/null ]] && rm -f $PIDFILE
+            if [ -f $PIDFILE ]; then
+                if [ ! ps h `cat $PIDFILE` > /dev/null ]; then
+                        # Stale PID file (process was succesfully stopped).
+			rm -f $PIDFILE
+                fi
+	    fi
+
+	    echo $PIDFILE_CHILDREN >  /opt/symfony-autoserve/tetst.log
+	    cat $PIDFILE_CHILDREN >> /opt/symfony-autoserve/tetst.log
 
 	    # Delete pidfile children..
             if [ -f $PIDFILE_CHILDREN ]; then
+	    echo $PIDFILE_CHILDREN >>  /opt/symfony-autoserve/tetst.log
 
 		for PID in $(cat $PIDFILE_CHILDREN); do
-			[ -z "$(ps aux | awk -v PID=$PID -v USER=$USER '{ if ($1==USER && $2==PID) {print $0}}')" ] && kill -9 $PID 2> /dev/null
+			[ ! -z "$(ps aux | awk -v PID=$PID -v USER=$USER '{ if ($1==USER && $2==PID) {print $0}}')" ] && kill -9 $PID 2> /dev/null
 		done
 
-		if [ ! ps h `cat $PIDFILE_CHILDREN` > /dev/null ]; then
-                	# Stale PID file (process was succesfully stopped).
-                	rm -f $PIDFILE_CHILDREN
-	        fi
+               	rm -f $PIDFILE_CHILDREN
 	    fi
 
         fi

@@ -15,7 +15,18 @@ import time
 __VERSION__ = "1.0.0";
 __ROOTDIR__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 
-def wait(plist = []):
+def wait(slist = [], wlist = []):
+
+    plist = wlist + slist;
+    def signal_handler(sig, frame):
+        print('You pressed Ctrl+C.. Killing Symfony services..')
+        for p in slist:
+            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+        for p in wlist:
+            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    time.sleep(0.5);
 
     # Check if apps is running
     print(Fore.GREEN + "-- Server daemon(s) running: " + str([p.pid for p in slist]) + Style.RESET_ALL)
@@ -30,13 +41,6 @@ def wait(plist = []):
         poll = p.poll()
         if not poll is None:
             print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
-
-    while True:
-	if(len(wlist)): break;
-	for p in wlist:
-	   poll = p.poll()
-           if not poll is None:
-              print(Fore.RED + "-- Process [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
 
     print('   * Press Ctrl+C to exit');
     return [p.wait() for p in plist];
@@ -163,14 +167,4 @@ if __name__ == "__main__":
     if(pidfile):
          pidfile.close();
 
-    def signal_handler(sig, frame):
-        print('You pressed Ctrl+C.. Killing Symfony services..')
-        for p in slist:
-            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-        for p in wlist:
-            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-
-    signal.signal(signal.SIGINT, signal_handler)
-    time.sleep(0.5);
-
-    wait(slist+wlist);
+    wait(slist,wlist);
