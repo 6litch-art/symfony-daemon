@@ -196,7 +196,7 @@ if __name__ == "__main__":
     warmup    = args.warmup;
 
     pidfile   = args.pidfile;
-    if(type(pidfile) == str): pidfile = open(pidfile,"w");
+    if(type(pidfile) == str): pidfile = open(pidfile,"w+");
 
     #
     # Print out some important information for logging
@@ -228,16 +228,16 @@ if __name__ == "__main__":
         plist += send_command(
             ["symfony serve --port " + port],
             cwd=path, pidfile=pidfile,
-            stdout="symfony-server.log", verbosity=verbosity
+            stdout="var/log/server.log", verbosity=verbosity
         );
 
         # Print out some variable
         print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+
               Fore.GREEN+"Listening:"+Style.RESET_ALL+
             " https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+
-            " ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into symfony-server.log)"+Style.RESET_ALL);
-        print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL + str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into symfony-messenger.log)"+Style.RESET_ALL)
-        print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into symfony-crontab.log)"+Style.RESET_ALL);
+            " ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into var/log/server.log)"+Style.RESET_ALL);
+        print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL + str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into var/log/messenger.log)"+Style.RESET_ALL)
+        print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into var/log/crontab.log)"+Style.RESET_ALL);
 
         # Wait some time before starting workers
         print(Fore.CYAN  + "   * Warmup time: "+str(warmup)+"s, please wait.." + Style.RESET_ALL);
@@ -250,7 +250,7 @@ if __name__ == "__main__":
             worker = workers[i];
             plist += send_command(
                 ["symfony console messenger:consume " + worker["transport"] + " -vv"],
-                cwd=path, pidfile=pidfile, stdout="symfony-messenger."+str(i)+".log", verbosity=verbosity
+                cwd=path, pidfile=pidfile, stdout="var/log/messenger."+str(i)+".log", verbosity=verbosity
             );
 
         #
@@ -260,7 +260,7 @@ if __name__ == "__main__":
             cron = crontab[i];
             plist += send_command(
                 [cron["cmd"]], spec=cron["spec"],
-                cwd=path, pidfile=pidfile, stdout="symfony-crontab."+str(i)+".log", verbosity=verbosity
+                cwd=path, pidfile=pidfile, stdout="var/log/crontab."+str(i)+".log", verbosity=verbosity
             );
 
     # Close PID file (this one will be updated later if required..)
