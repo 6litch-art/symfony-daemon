@@ -46,6 +46,7 @@ case "$1" in
         # Make sure we have our PIDDIR and LOGDIR, even if they're on a tmpfs.
         install -o root -g root -m 755 -d $PIDDIR
         install -o root -g root -m 755 -d $LOGDIR
+	chmod o+wx /var/lib/php/sessions/
 
 	mkdir -p $LOGDIR 2> /dev/null
 	chown www-data:www-data -R $LOGDIR 2> /dev/null
@@ -56,6 +57,7 @@ case "$1" in
 	chmod 755 -R $PIDFILE_CHILDREN 2> /dev/null
 	chown www-data:www-data -R $PIDDIR 2> /dev/null
 	chmod 755 -R $PIDDIR 2> /dev/null
+
 
         if [ "$RUN_MODE" != "inetd" ]; then
             log_progress_msg "$NAME"
