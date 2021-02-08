@@ -57,7 +57,7 @@ def wait(plist = [], **kwargs):
 
                 # Timeout, command needs to be submitted
                 if (verbosity):
-                    print(Fore.YELLOW+ "     Cronjob waiting [" + ' '.join(cmd) + "]:"+Style.RESET_ALL+" Next iteration at " + str(plist[k]["next"]) + Style.RESET_ALL);
+                    print(Fore.YELLOa+ "     Cronjob waiting [" + ' '.join(cmd) + "]:"+Style.RESET_ALL+" Next iteration at " + str(plist[k]["next"]) + Style.RESET_ALL);
 
                 if ((plist[k]["next"] - now) < timedelta(0)):
                     plist[k]["next"] = None;
@@ -70,7 +70,7 @@ def wait(plist = [], **kwargs):
                         plist[k]["process"].kill();
 
                     # Resubmit command..
-                    pidfile = open(pidfile.name, "w+")
+                    pidfile = open(pidfile.name, "a+")
                     plist[k]["process"] = send_command([cmd], pidfile=pidfile, verbosity=plist[k]["verbosity"], cwd=plist[k]["cwd"], stdout=plist[k]["stdout"], stderr=plist[k]["stderr"])[0]["process"];
                     pidfile.close();
 
@@ -87,7 +87,7 @@ def wait(plist = [], **kwargs):
 
                 if(plist_attempt[k]):
 
-                    pidfile = open(pidfile.name, "w+")
+                    pidfile = open(pidfile.name, "a+")
                     plist[k]["process"] = send_command([p.args], pidfile=pidfile, verbosity=plist[k]["verbosity"], cwd=plist[k]["cwd"], stdout=plist[k]["stdout"], stderr=plist[k]["stderr"])[0]["process"];
                     pidfile.close();
 
@@ -118,8 +118,8 @@ def send_command(cmdlist, **kwargs):
     plist = [];
     for cmd in cmdlist:
         p = subprocess.Popen(cmd if type(cmd) == list else cmd.split(' '),
-                stdout=open(stdout, "w+") if type(stdout) == str else stdout,
-                stderr=open(stderr, "w+") if type(stderr) == str else stderr, cwd=cwd);
+                stdout=open(stdout, "a+") if type(stdout) == str else stdout,
+                stderr=open(stderr, "a+") if type(stderr) == str else stderr, cwd=cwd);
 
         plist.append({
             "process":p, "stdout":stdout,"stderr":stderr,
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     warmup    = args.warmup;
 
     pidfile   = args.pidfile;
-    if(type(pidfile) == str): pidfile = open(pidfile,"w+");
+    if(type(pidfile) == str): pidfile = open(pidfile,"a+");
 
     #
     # Print out some important information for logging
