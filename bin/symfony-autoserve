@@ -17,6 +17,14 @@ import time
 __VERSION__ = "1.0.0";
 __ROOTDIR__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 
+def get_cache_info(directory):
+    directory += "/var/cache";
+    file_list = []
+    for i in os.listdir(directory):
+        a = os.stat(os.path.join(directory,i))
+        file_list.append([i,time.ctime(a.st_atime),time.ctime(a.st_ctime)]) #[file,most_recent_access,created]
+    return file_list
+
 def wait(plist = [], **kwargs):
 
     timeout  = kwargs.get("timeout",  5);
@@ -43,11 +51,13 @@ def wait(plist = [], **kwargs):
 
         for k in range(len(plist)):
 
-            p = plist[k]["process"];
-            cmd = p.args;
+            p    = plist[k]["process"];
+            cwd  = plist[k]["cwd"];
+
+            cmd  = p.args;
             poll = p.poll();
 
-            now = datetime.now();
+            now  = datetime.now();
             cron = plist[k]["cron"];
             if (cron):
 
@@ -55,9 +65,16 @@ def wait(plist = [], **kwargs):
                 if (not "next" in plist[k]):
                     plist[k]["next"] = datetime.strptime(str(cron.get_next(datetime)), "%Y-%m-%d %H:%M:%S");
 
+                # Check if a cache has been cleaned
+                cache = get_cache_info(cwd);
+                if(plist[k]["cache"] != cache):
+                    plist[k]["next"] = now - timedelta(1);
+                    plist[k]["cache"] = cache;
+                    time.sleep(warmup);
+
                 # Timeout, command needs to be submitted
                 if (verbosity):
-                    print(Fore.YELLOa+ "     Cronjob waiting [" + ' '.join(cmd) + "]:"+Style.RESET_ALL+" Next iteration at " + str(plist[k]["next"]) + Style.RESET_ALL);
+                    print(Fore.YELLOW+ "     Cronjob waiting [" + ' '.join(cmd) + "]:"+Style.RESET_ALL+" Next iteration at " + str(plist[k]["next"]) + Style.RESET_ALL);
 
                 if ((plist[k]["next"] - now) < timedelta(0)):
                     plist[k]["next"] = None;
@@ -95,7 +112,6 @@ def wait(plist = [], **kwargs):
                     if(verbosity): print(Fore.YELLOW + "     Attempt to restart [" + str(p.pid) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "] ("+str(attempts-plist_attempt[k])+"/"+str(attempts)+")" + Style.RESET_ALL);
                     plist_crash[k] = False;
 
-
         # Wait before next attempt
         time.sleep(timeout)
         if timeout <= 0: break;
@@ -123,7 +139,7 @@ def send_command(cmdlist, **kwargs):
 
         plist.append({
             "process":p, "stdout":stdout,"stderr":stderr,
-            "cwd":cwd, "pidfile":pidfile, "verbosity":verbosity,
+            "cwd":cwd, "pidfile":pidfile, "verbosity":verbosity, "cache": get_cache_info(cwd),
             "cron":croniter.croniter(spec, datetime.now()) if spec else None
         });
 
