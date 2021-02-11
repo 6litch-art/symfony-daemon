@@ -90,7 +90,7 @@ def wait(plist = [], **kwargs):
                     pidfile.close();
 
                     # Notify and prepare for next iteration
-                    if(verbosity): print(Fore.GREEN+ "     Cronjob launched [" + str(plist[k]["cmd"]) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "]" + Style.RESET_ALL);
+                    if(verbosity): print(Fore.GREEN+ "     Cronjob launched [" + ' '.join(cmd) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "]" + Style.RESET_ALL);
                     del plist[k]["next"];
 
                 elif (verbosity):
