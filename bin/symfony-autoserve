@@ -53,7 +53,7 @@ def wait(plist = [], **kwargs):
 
             p    = plist[k]["process"];
             cwd  = plist[k]["cwd"];
-
+            verbosity = plist[k]["verbosity"];
             cmd  = p.args;
             poll = p.poll();
 
@@ -68,14 +68,12 @@ def wait(plist = [], **kwargs):
                 # Check if a cache has been cleaned
                 cache = get_cache_info(cwd);
                 if(plist[k]["cache"] != cache):
+                    print(Fore.YELLOW+ "     Cache cleaned for ["+cwd+"].. crontab will be refreshed at next iteration"+Style.RESET_ALL);
                     plist[k]["next"] = now - timedelta(1);
                     plist[k]["cache"] = cache;
                     time.sleep(warmup);
 
                 # Timeout, command needs to be submitted
-                if (verbosity):
-                    print(Fore.YELLOW+ "     Cronjob waiting [" + ' '.join(cmd) + "]:"+Style.RESET_ALL+" Next iteration at " + str(plist[k]["next"]) + Style.RESET_ALL);
-
                 if ((plist[k]["next"] - now) < timedelta(0)):
                     plist[k]["next"] = None;
 
@@ -94,6 +92,9 @@ def wait(plist = [], **kwargs):
                     # Notify and prepare for next iteration
                     if(verbosity): print(Fore.GREEN+ "     Cronjob launched [" + str(plist[k]["cmd"]) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "]" + Style.RESET_ALL);
                     del plist[k]["next"];
+
+                elif (verbosity):
+                    print(Fore.YELLOW+ "     Cronjob waiting [" + ' '.join(cmd) + "]:"+Style.RESET_ALL+" Next iteration at " + str(plist[k]["next"]) + Style.RESET_ALL);
 
             # Resubmit if crashed..
             elif not poll is None:
@@ -144,7 +145,10 @@ def send_command(cmdlist, **kwargs):
         });
 
 
-        if(verbosity): print("@subprocess: "+ " ".join(cmd) + "; @return "+plist[-1]["process"].communicate()[0].strip().decode("utf-8"));
+        if(verbosity > 1):
+           cmd_str = " ".join(cmd) if type(cmd) == list else cmd;
+           print("     @subprocess: "+ cmd_str + ";"); # @return "+plist[-1]["process"].communicate()[0].strip().decode("utf-8"));
+
         if(pidfile): pidfile.write(" "+str(plist[-1]["process"].pid));
 
     os.chdir(wd)
@@ -248,9 +252,9 @@ if __name__ == "__main__":
         );
 
         # Print out some variable
-        print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " / "+
+        print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " | "+
               Fore.GREEN+"Listening:"+Style.RESET_ALL+
-            " https://127.0.0.1:"+port+" / "+Fore.GREEN+"PID:"+Style.RESET_ALL+
+            " https://127.0.0.1:"+port+" | "+Fore.GREEN+"PID:"+Style.RESET_ALL+
             " ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into var/log/server.log)"+Style.RESET_ALL);
         print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL + str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into var/log/messenger.log)"+Style.RESET_ALL)
         print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into var/log/crontab.log)"+Style.RESET_ALL);
