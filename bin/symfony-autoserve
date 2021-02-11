@@ -100,7 +100,7 @@ def wait(plist = [], **kwargs):
             elif not poll is None:
 
                 if(not plist_crash[k]):
-                    if(verbosity): print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+                    print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
                     plist_crash[k] = True;
 
                 if(plist_attempt[k]):
@@ -110,7 +110,7 @@ def wait(plist = [], **kwargs):
                     pidfile.close();
 
                     plist_attempt[k] = plist_attempt[k] - 1;
-                    if(verbosity): print(Fore.YELLOW + "     Attempt to restart [" + str(p.pid) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "] ("+str(attempts-plist_attempt[k])+"/"+str(attempts)+")" + Style.RESET_ALL);
+                    print(Fore.YELLOW + "     Attempt to restart [" + str(p.pid) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "] ("+str(attempts-plist_attempt[k])+"/"+str(attempts)+")" + Style.RESET_ALL);
                     plist_crash[k] = False;
 
         # Wait before next attempt
@@ -295,10 +295,11 @@ if __name__ == "__main__":
         for p in plist:
             os.killpg(os.getpgid(p["process"].pid), signal.SIGTERM)
     signal.signal(signal.SIGINT, signal_handler)
-    print('   * Press Ctrl+C to exit');
 
     #
     # Wait for the process to finish + resubmit commands if necessary
     #
-    if(verbosity): print(Fore.MAGENTA + "-- Daemon status:"+ Style.RESET_ALL)
+    print(Fore.MAGENTA + "-- Daemon status:"+ Style.RESET_ALL)
+    print('   * Press Ctrl+C to exit');
+
     wait(plist, attempts=attempts, timeout=timeout, cwd=path, pidfile=pidfile);
