@@ -25,4 +25,4 @@ install:
 	@chmod 755 /etc/init.d/symfony-autoserve
 	@mkdir -p /var/log/symfony
 	@chmod 755 -R /var/log/symfony
-	@chown www-data:www-data /var/log/symfony
+	@chown www-data:www-data -R /var/log/symfony
