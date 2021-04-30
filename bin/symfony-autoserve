@@ -14,8 +14,14 @@ import signal
 import sys
 import time
 
-__VERSION__ = "1.0.0";
+__VERSION__ = "1.1.0";
 __ROOTDIR__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
+__LOGDIR__  = "/var/log/symfony";
+
+def ensure_dir(file_path):
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 def get_cache_info(directory):
     directory += "/var/cache";
@@ -100,8 +106,13 @@ def wait(plist = [], **kwargs):
             elif not poll is None:
 
                 if(not plist_crash[k]):
-                    print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL);
+                    print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL, end=" ");
                     plist_crash[k] = True;
+                    if (verbosity):
+                          print(Fore.YELLOW + ' '.join(cmd) + Style.RESET_ALL);
+                    else:
+                          print("");
+
 
                 if(plist_attempt[k]):
 
@@ -163,16 +174,28 @@ def parse_xml(xmlfile):
     for app in tree.xpath("//symfony/application"):
 
         path = app.get("path");
+        if(not path):
+            print("There is no path in the current application.. "+ app, file=sys.stderr);
+            exit(1);
+
         if(path in d):
             print("This application already exists.. "+path, file=sys.stderr);
             exit(1);
 
         d[path] = {};
+        d[path]["id"]   = app.get("id");
+        if not 'id' in d[path].keys():
+              print("Identifier not found for the application.. "+ path, file=sys.stderr)
+              exit(1);
+
         d[path]["port"]   = app.get("port");
+        if not 'port' in d[path].keys():
+              print("Port not defined for application.. "+ path, file=sys.stderr)
+              exit(1);
 
         d[path]["workers"] = [];
         for worker in app.xpath("worker"):
-            d[path]["workers"].append({"transport": worker.get("transport")});
+            d[path]["workers"].append({"transport": worker.get("transport"), "opts": worker.get("opts")});
 
         d[path]["crontab"] = [];
         for cron in app.xpath("cron"):
@@ -226,6 +249,10 @@ if __name__ == "__main__":
     print(Fore.GREEN + "-- XML Configuration File: "+Style.RESET_ALL + args.config);
     if(pidfile): print(Fore.GREEN + "-- Writing PID here: "+ Style.RESET_ALL+ pidfile.name);
 
+
+    print(Fore.GREEN + "-- Logging Directory: "+Style.RESET_ALL + __LOGDIR__);
+    ensure_dir(__LOGDIR__)
+
     print(Fore.MAGENTA + "-- Starting server(s):"+ Style.RESET_ALL)
     if(pidfile): pidfile.write(str(os.getpid()));
 
@@ -238,7 +265,8 @@ if __name__ == "__main__":
         #
         # Prepare new application
         #
-        port = symfony[path]["port"];
+        id      = symfony[path]["id"];
+        port    = symfony[path]["port"];
         workers = symfony[path]["workers"];
         crontab = symfony[path]["crontab"];
 
@@ -248,16 +276,23 @@ if __name__ == "__main__":
         plist += send_command(
             ["symfony serve --port " + port],
             cwd=path, pidfile=pidfile,
-            stdout="var/log/server.log", verbosity=verbosity
+            stdout="/var/log/symfony/"+id+".access.log", verbosity=verbosity
         );
 
         # Print out some variable
         print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " | "+
               Fore.GREEN+"Listening:"+Style.RESET_ALL+
             " https://127.0.0.1:"+port+" | "+Fore.GREEN+"PID:"+Style.RESET_ALL+
-            " ["+str(plist[-1]["process"].pid)+"]"+Fore.CYAN+" (logs stored into var/log/server.log)"+Style.RESET_ALL);
-        print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL + str([w["transport"] for w in workers])+Fore.CYAN+" (logs stored into var/log/messenger.log)"+Style.RESET_ALL)
-        print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]) +Fore.CYAN+" (logs stored into var/log/crontab.log)"+Style.RESET_ALL);
+            " ["+str(plist[-1]["process"].pid)+"]");
+        print(Style.RESET_ALL+   "     (logs stored into /var/log/symfony/"+id+".access.log)"+Style.RESET_ALL);
+
+        print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s): "+ Style.RESET_ALL + str([w["transport"] for w in workers]));
+        if len(workers):
+          print(Style.RESET_ALL+ "     (logs stored into /var/log/symfony/"+id+".messenger.X.log)"+Style.RESET_ALL)
+
+        print(Fore.GREEN + "     and also " + str(len(crontab)) + " cron task(s): "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]));
+        if len(crontab):
+          print(Style.RESET_ALL+ "     (logs stored into /var/log/symfony/"+id+".crontab.log)"+Style.RESET_ALL)
 
         # Wait some time before starting workers
         print(Fore.CYAN  + "   * Warmup time: "+str(warmup)+"s, please wait.." + Style.RESET_ALL);
@@ -269,8 +304,8 @@ if __name__ == "__main__":
         for i in range(len(workers)):
             worker = workers[i];
             plist += send_command(
-                ["symfony console messenger:consume " + worker["transport"] + " -vv"],
-                cwd=path, pidfile=pidfile, stdout="var/log/messenger."+str(i)+".log", verbosity=verbosity
+                ["symfony console messenger:consume " + worker["transport"] + " -vv " + worker["opts"]],
+                cwd=path, pidfile=pidfile, stdout="/var/log/symfony/"+id+".messenger."+str(i)+".log", verbosity=verbosity
             );
 
         #
@@ -280,7 +315,7 @@ if __name__ == "__main__":
             cron = crontab[i];
             plist += send_command(
                 [cron["cmd"]], spec=cron["spec"],
-                cwd=path, pidfile=pidfile, stdout="var/log/crontab."+str(i)+".log", verbosity=verbosity
+                cwd=path, pidfile=pidfile, stdout="/var/log/symfony/"+id+".crontab."+str(i)+".log", verbosity=verbosity
             );
 
     # Close PID file (this one will be updated later if required..)
@@ -294,6 +329,7 @@ if __name__ == "__main__":
         print('You pressed Ctrl+C.. Killing Symfony services..')
         for p in plist:
             os.killpg(os.getpgid(p["process"].pid), signal.SIGTERM)
+
     signal.signal(signal.SIGINT, signal_handler)
 
     #
