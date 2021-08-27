@@ -295,7 +295,7 @@ if __name__ == "__main__":
             " https://127.0.0.1:"+port+" | "+Fore.GREEN+"PID:"+Style.RESET_ALL+
             " ["+str(plist[-1]["process"].pid)+"]");
 
-        print(Style.RESET_ALL+   "     (logs stored into /var/log/symfony/"+id+".[access|messenger.X|crontab].log)"+Style.RESET_ALL);
+        print(Style.RESET_ALL+   "     (logs stored into /var/log/symfony/"+id+".[access|messenger.X|crontab].std[out|err])"+Style.RESET_ALL);
 
         print(Fore.GREEN + "     It contains " + str(len(workers)) + " worker(s) "+ Style.RESET_ALL + str([w["transport"] for w in workers]), end=" ");
         print(Fore.GREEN + " and " + str(len(crontab)) + " cron task(s) "+ Style.RESET_ALL + str([cron["name"] for cron in crontab]));
@@ -321,7 +321,7 @@ if __name__ == "__main__":
             cron = crontab[i];
             plist += send_command(
                 [cron["cmd"]], spec=cron["spec"],
-                cron=True, cwd=path, pidfile=pidfile, stdout="/var/log/symfony/"+id+".crontab."+str(i)+".log", stderr="/var/log/symfony/"+id+".crontab."+str(i)+".stderr", verbosity=verbosity
+                cron=True, cwd=path, pidfile=pidfile, stdout="/var/log/symfony/"+id+".crontab."+str(i)+".stdout", stderr="/var/log/symfony/"+id+".crontab."+str(i)+".stderr", verbosity=verbosity
             );
 
     # Close PID file (this one will be updated later if required..)
