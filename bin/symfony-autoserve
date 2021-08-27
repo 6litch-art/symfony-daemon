@@ -286,7 +286,7 @@ if __name__ == "__main__":
         plist += send_command(
             ["symfony serve --port " + port],
             cwd=path, pidfile=pidfile,
-            application=True, stdout="/var/log/symfony/"+id+".access.log", stderr="/var/log/symfony/"+id+".access.log", verbosity=verbosity
+            application=True, stdout="/var/log/symfony/"+id+".access.stdout", stderr="/var/log/symfony/"+id+".access.stderr", verbosity=verbosity
         );
 
         # Print out some variable
@@ -311,7 +311,7 @@ if __name__ == "__main__":
             worker = workers[i];
             plist += send_command(
                 ["symfony console messenger:consume " + worker["transport"] + " -vv " + worker["opts"]],
-                worker=True, cwd=path, pidfile=pidfile, stdout="/var/log/symfony/"+id+".messenger."+str(i)+".log", verbosity=verbosity
+                worker=True, cwd=path, pidfile=pidfile, stdout="/var/log/symfony/"+id+".messenger."+str(i)+".stdout", stderr="/var/log/symfony/"+id+".messenger."+str(i)+".stderr", verbosity=verbosity
             );
 
         #
@@ -321,7 +321,7 @@ if __name__ == "__main__":
             cron = crontab[i];
             plist += send_command(
                 [cron["cmd"]], spec=cron["spec"],
-                cron=True, cwd=path, pidfile=pidfile, stdout="/var/log/symfony/"+id+".crontab."+str(i)+".log", verbosity=verbosity
+                cron=True, cwd=path, pidfile=pidfile, stdout="/var/log/symfony/"+id+".crontab."+str(i)+".log", stderr="/var/log/symfony/"+id+".crontab."+str(i)+".stderr", verbosity=verbosity
             );
 
     # Close PID file (this one will be updated later if required..)

@@ -58,10 +58,10 @@ case "$1" in
 	chown www-data:www-data -R $PIDDIR 2> /dev/null
 	chmod 755 -R $PIDDIR 2> /dev/null
 
-
         if [ "$RUN_MODE" != "inetd" ]; then
             log_progress_msg "$NAME"
             if ! start-stop-daemon --start --quiet --oknodo --chuid "$USER:$GROUP" --pidfile $PIDFILE --background --no-close --startas $DAEMON -- $DAEMONOPTS --pidfile $PIDFILE_CHILDREN >> $LOGFILE 2>&1; then
+                failure "Starting symfony daemon.."
                 log_end_msg 1
                 exit 1
             fi
@@ -70,6 +70,7 @@ case "$1" in
 
         fi
 
+        success "Starting symfony daemon.."
         log_end_msg 0
         ;;
     stop)

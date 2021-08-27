@@ -6,6 +6,5 @@
 	</application>
 	<application path="/your/symfony/project2" port="8002" />
 		<worker transport="async" />
-		<worker transport="async" />
 	</application>
 </symfony>
