@@ -47,6 +47,7 @@ def wait(plist = [], **kwargs):
     for p in plist:
         plist_crash.append(False);
 
+    ensure_dir(__LOGDIR__)
     time.sleep(0.5);
     while True:
 
@@ -104,13 +105,12 @@ def wait(plist = [], **kwargs):
 
             # Resubmit if crashed..
             elif not poll is None:
-
                 if(not plist_crash[k]):
                     if(p.returncode):
-                         print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.." + Style.RESET_ALL, end=" ");
+                         print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.. " + datetime.strptime(str(datetime.now()), "%Y-%m-%d %H:%M:%S") + Style.RESET_ALL, end=" ");
                          print(' '.join(cmd) + Style.RESET_ALL) if verbosity else print("");
                     else:
-                         print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just stopped.." + Style.RESET_ALL, end=" ");
+                         print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just stopped.. " + datetime.strptime(str(datetime.now()), "%Y-%m-%d %H:%M:%S") + Style.RESET_ALL, end=" ");
                          print(' '.join(cmd) + Style.RESET_ALL) if verbosity else print("");
 
                     if p.returncode == 0 and plist[k]["worker"]: # Assume a worker can restart infinitely.. if valid return code
