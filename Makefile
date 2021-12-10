@@ -20,9 +20,9 @@ redis:
 
 install:
 	@cp -p  $(SYMFONY_AUTOSERVE)/bin/symfony-autoserve /usr/local/bin
-	@cp -p  $(SYMFONY_AUTOSERVE)/etc/init.d/symfony-autoserve /etc/init.d
+	@cp -p  $(SYMFONY_AUTOSERVE)/etc/init.d/symfony /etc/init.d
 	@cp -pn $(SYMFONY_AUTOSERVE)/etc/symfony.xml /etc/symfony.xml
-	@chmod 755 /etc/init.d/symfony-autoserve
+	@chmod 755 /etc/init.d/symfony
 	@mkdir -p /var/log/symfony
 	@chmod 755 -R /var/log/symfony
 	@chown www-data:www-data -R /var/log/symfony

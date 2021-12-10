@@ -1,4 +1,4 @@
-#! /usr/bin/python3.7
+#! /usr/bin/python3
 
 import tempfile
 import croniter
@@ -17,6 +17,33 @@ import time
 __VERSION__ = "1.1.0";
 __ROOTDIR__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
 __LOGDIR__  = "/var/log/symfony";
+
+def tail( f, lines=20 ):
+    total_lines_wanted = lines
+
+    BLOCK_SIZE = 1024
+    f.seek(0, 2)
+    block_end_byte = f.tell()
+    lines_to_go = total_lines_wanted
+    block_number = -1
+    blocks = [] # blocks of size BLOCK_SIZE, in reverse order starting
+                # from the end of the file
+    while lines_to_go > 0 and block_end_byte > 0:
+        if (block_end_byte - BLOCK_SIZE > 0):
+            # read the last block we haven't yet read
+            f.seek(block_number*BLOCK_SIZE, 2)
+            blocks.append(f.read(BLOCK_SIZE))
+        else:
+            # file too small, start from begining
+            f.seek(0,0)
+            # only read what was not read
+            blocks.append(f.read(block_end_byte))
+        lines_found = blocks[-1].count('\n')
+        lines_to_go -= lines_found
+        block_end_byte -= BLOCK_SIZE
+        block_number -= 1
+    all_read_text = ''.join(reversed(blocks))
+    return '\n'.join(all_read_text.splitlines()[-total_lines_wanted:])
 
 def ensure_dir(file_path):
     directory = os.path.dirname(file_path)
@@ -75,7 +102,7 @@ def wait(plist = [], **kwargs):
                 # Check if a cache has been cleaned
                 cache = get_cache_info(cwd);
                 if(plist[k]["cache"] != cache):
-                    print(Fore.YELLOW+ "     Cache cleaned for ["+cwd+"].. crontab will be refreshed at next iteration"+Style.RESET_ALL);
+                    print(Fore.YELLOW+ "     ["+datetime.now().strftime("%Y-%m-%d %H:%M:%S")+"] Cache cleaned for ["+cwd+"].. crontab will be refreshed at next iteration"+Style.RESET_ALL);
                     plist[k]["next"] = now - timedelta(1);
                     plist[k]["cache"] = cache;
                     time.sleep(warmup);
@@ -107,10 +134,10 @@ def wait(plist = [], **kwargs):
             elif not poll is None:
                 if(not plist_crash[k]):
                     if(p.returncode):
-                         print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.. " + datetime.strptime(str(datetime.now()), "%Y-%m-%d %H:%M:%S") + Style.RESET_ALL, end=" ");
+                         print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just crashed.. " + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + Style.RESET_ALL, end=" ");
                          print(' '.join(cmd) + Style.RESET_ALL) if verbosity else print("");
                     else:
-                         print(Fore.RED + "   * Daemon [" + str(p.pid) + "] just stopped.. " + datetime.strptime(str(datetime.now()), "%Y-%m-%d %H:%M:%S") + Style.RESET_ALL, end=" ");
+                         print(Fore.RED + "   * ["+datetime.now().strftime("%Y-%m-%d %H:%M:%S")+"] Daemon [" + str(p.pid) + "] just stopped.. "+ Style.RESET_ALL, end=" ");
                          print(' '.join(cmd) + Style.RESET_ALL) if verbosity else print("");
 
                     if p.returncode == 0 and plist[k]["worker"]: # Assume a worker can restart infinitely.. if valid return code
@@ -126,7 +153,7 @@ def wait(plist = [], **kwargs):
                     plist[k]["process"] = send_command([p.args], pidfile=pidfile, verbosity=plist[k]["verbosity"], cwd=plist[k]["cwd"], stdout=plist[k]["stdout"], stderr=plist[k]["stderr"])[0]["process"];
                     pidfile.close();
 
-                    print(Fore.YELLOW + "     Attempt to restart [" + str(p.pid) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "] ("+str(attempts-plist_attempt[k])+"/"+str(attempts)+")" + Style.RESET_ALL);
+                    print(Fore.YELLOW + "     ["+datetime.now().strftime("%Y-%m-%d %H:%M:%S")+"] Attempt to restart [" + str(p.pid) + "]:"+Style.RESET_ALL+" New daemon [" + str(plist[k]["process"].pid) + "] ("+str(attempts-plist_attempt[k])+"/"+str(attempts)+")" + Style.RESET_ALL);
                     plist_crash[k] = False;
 
         # Wait before next attempt
@@ -283,8 +310,9 @@ if __name__ == "__main__":
         #
         # Starting server
         #
+	# "symfony server:ca:install"
         plist += send_command(
-            ["symfony serve --port " + port],
+            ["symfony server:ca:install", "symfony serve --port " + port],
             cwd=path, pidfile=pidfile,
             application=True, stdout="/var/log/symfony/"+id+".access.stdout", stderr="/var/log/symfony/"+id+".access.stderr", verbosity=verbosity
         );
