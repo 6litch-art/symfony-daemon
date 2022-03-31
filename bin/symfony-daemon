@@ -52,6 +52,8 @@ def ensure_dir(file_path):
 
 def get_cache_info(directory):
     directory += "/var/cache";
+    ensure_dir(directory);
+
     file_list = []
     for i in os.listdir(directory):
         a = os.stat(os.path.join(directory,i))
@@ -250,7 +252,7 @@ if __name__ == "__main__":
     #
     # Program usage parser
     #
-    parser = argparse.ArgumentParser(description='Symfony Autoserve Arguments')
+    parser = argparse.ArgumentParser(description='Symfony Daemon Arguments')
     parser.add_argument('--config', type=str,
                         default="/etc/symfony.xml",
                         help='Provide XML configuration file')
@@ -281,7 +283,7 @@ if __name__ == "__main__":
     #
     # Print out some important information for logging
     #
-    print(Fore.MAGENTA + "-- Symfony Autoserve v"+__VERSION__+Style.RESET_ALL);
+    print(Fore.MAGENTA + "-- Symfony Daemon v"+__VERSION__+Style.RESET_ALL);
     print(Fore.GREEN + "-- Project Directory: "+Style.RESET_ALL + __ROOTDIR__);
     print(Fore.GREEN + "-- XML Configuration File: "+Style.RESET_ALL + args.config);
     if(pidfile): print(Fore.GREEN + "-- Writing PID here: "+ Style.RESET_ALL+ pidfile.name);
