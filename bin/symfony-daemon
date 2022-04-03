@@ -16,7 +16,7 @@ import time
 
 __VERSION__ = "1.1.0";
 __ROOTDIR__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
-__LOGDIR__  = "/var/log/symfony";
+__LOGDIR__  = "/var/log/symfony-daemon";
 
 def tail( f, lines=20 ):
     total_lines_wanted = lines
