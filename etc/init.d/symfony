@@ -46,17 +46,17 @@ case "$1" in
         # Make sure we have our PIDDIR and LOGDIR, even if they're on a tmpfs.
         install -o root -g root -m 755 -d $PIDDIR
         install -o root -g root -m 755 -d $LOGDIR
-	chmod o+wx /var/lib/php/sessions/
+        chmod o+wx /var/lib/php/sessions/
 
-	mkdir -p $LOGDIR 2> /dev/null
-	chown www-data:www-data -R $LOGDIR 2> /dev/null
-	chmod 755 -R $LOGDIR 2> /dev/null
-	chown www-data:www-data -R $PIDFILE 2> /dev/null
-	chmod 755 -R $PIDFILE 2> /dev/null
-	chown www-data:www-data -R $PIDFILE_CHILDREN 2> /dev/null
-	chmod 755 -R $PIDFILE_CHILDREN 2> /dev/null
-	chown www-data:www-data -R $PIDDIR 2> /dev/null
-	chmod 755 -R $PIDDIR 2> /dev/null
+        mkdir -p $LOGDIR 2> /dev/null
+        chown www-data:www-data -R $LOGDIR 2> /dev/null
+        chmod 755 -R $LOGDIR 2> /dev/null
+        chown www-data:www-data -R $PIDFILE 2> /dev/null
+        chmod 755 -R $PIDFILE 2> /dev/null
+        chown www-data:www-data -R $PIDFILE_CHILDREN 2> /dev/null
+        chmod 755 -R $PIDFILE_CHILDREN 2> /dev/null
+        chown www-data:www-data -R $PIDDIR 2> /dev/null
+        chmod 755 -R $PIDDIR 2> /dev/null
 
         if [ "$RUN_MODE" != "inetd" ]; then
             log_progress_msg "$NAME"
@@ -85,21 +85,20 @@ case "$1" in
             sleep 1
             if [ -f $PIDFILE ]; then
                 if [ ! ps h `cat $PIDFILE` > /dev/null ]; then
-                        # Stale PID file (process was succesfully stopped).
-			rm -f $PIDFILE
+                       # Stale PID file (process was succesfully stopped).
+                    rm -f $PIDFILE
                 fi
-	    fi
+	        fi
 
-	    # Delete pidfile children..
+            # Delete pidfile children..
             if [ -f $PIDFILE_CHILDREN ]; then
 
-		for PID in $(cat $PIDFILE_CHILDREN); do
-			[ ! -z "$(ps aux | awk -v PID=$PID -v USER=$USER '{ if ($1==USER && $2==PID) {print $0}}')" ] && kill -9 $PID 2> /dev/null
-		done
+                for PID in $(cat $PIDFILE_CHILDREN); do
+                    [ ! -z "$(ps aux | awk -v PID=$PID -v USER=$USER '{ if ($1==USER && $2==PID) {print $0}}')" ] && kill -9 $PID 2> /dev/null
+                done
 
-               	rm -f $PIDFILE_CHILDREN
-	    fi
-
+                rm -f $PIDFILE_CHILDREN
+            fi
         fi
 
         log_end_msg 0

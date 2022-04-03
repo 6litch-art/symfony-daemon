@@ -1,9 +1,9 @@
-ifndef SYMFONY_DAEMON
-  $(error SYMFONY_DAEMON is not defined. Please source setup.[c]sh)
+ifndef SYMFONY
+  $(error SYMFONY is not defined. Please source setup.[c]sh)
 endif
 
 symfony:
-	@$(SYMFONY_DAEMON)/bin/symfony-daemon
+	@$(SYMFONY)/bin/symfony-daemon
 
 rabbitmq:
 	@curl -fsSL https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc | sudo apt-key add -
@@ -15,13 +15,13 @@ rabbitmq:
 redis:
 	@apt-get install -y redis-server
 	@npm install -g redis-commander
-	@cp -p $(SYMFONY_DAEMON)/etc/init.d/redis-commander /etc/init.d
+	@cp -p $(SYMFONY)/etc/init.d/redis-commander /etc/init.d
 	@chmod 755 /etc/init.d/redis-commander
 
 install:
-	@cp -p  $(SYMFONY_DAEMON)/bin/symfony-daemon /usr/local/bin
-	@cp -p  $(SYMFONY_DAEMON)/etc/init.d/symfony /etc/init.d
-	@cp -pn $(SYMFONY_DAEMON)/etc/symfony.xml /etc/symfony.xml
+	@cp -p  $(SYMFONY)/bin/symfony-daemon /usr/local/bin
+	@cp -p  $(SYMFONY)/etc/init.d/symfony /etc/init.d
+	@cp -pn $(SYMFONY)/etc/symfony.xml /etc/symfony.xml
 	@chmod 755 /etc/init.d/symfony
 	@mkdir -p /var/log/symfony
 	@chmod 755 -R /var/log/symfony

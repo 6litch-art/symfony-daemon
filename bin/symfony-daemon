@@ -180,12 +180,13 @@ def send_command(cmdlist, **kwargs):
     application = kwargs.get("application", False);
     crontab     = kwargs.get("crontab", False);
     worker      = kwargs.get("worker", False);
+    shell      = kwargs.get("shell", False);
 
     plist = [];
     for cmd in cmdlist:
         p = subprocess.Popen(cmd if type(cmd) == list else cmd.split(' '),
                 stdout=open(stdout, "a+") if type(stdout) == str else stdout,
-                stderr=open(stderr, "a+") if type(stderr) == str else stderr, cwd=cwd);
+                stderr=open(stderr, "a+") if type(stderr) == str else stderr, cwd=cwd, shell=shell);
 
         plist.append({
             "application":application, "worker":worker, "crontab":crontab,
@@ -193,7 +194,6 @@ def send_command(cmdlist, **kwargs):
             "cwd":cwd, "pidfile":pidfile, "verbosity":verbosity, "cache": get_cache_info(cwd),
             "cron":croniter.croniter(spec, datetime.now()) if spec else None
         });
-
 
         if(verbosity > 1):
            cmd_str = " ".join(cmd) if type(cmd) == list else cmd;
@@ -312,13 +312,16 @@ if __name__ == "__main__":
         #
         # Starting server
         #
-	# "symfony server:ca:install"
         plist += send_command(
-            ["symfony server:ca:install", "symfony serve --port " + port],
+            ["symfony server:ca:install", "symfony server:start --port " + port],
             cwd=path, pidfile=pidfile,
             application=True, stdout="/var/log/symfony/"+id+".access.stdout", stderr="/var/log/symfony/"+id+".access.stderr", verbosity=verbosity
         );
 
+        phpfpm = "symfony server:status | grep PID | awk '{print $2}' | sed -r 's/\x1B\[(([0-9]+)(;[0-9]+)*)?[mn,K,H,f,J]//g' | egrep -o '([0-9]+)'"
+        phpfpm = subprocess.Popen(phpfpm,shell=True,cwd=path, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0].decode("utf-8") 
+        pidfile.write(" " + phpfpm)
+        
         # Print out some variable
         print(Fore.GREEN + "   * New application: "+ Style.RESET_ALL +path+ " | "+
               Fore.GREEN+"Listening:"+Style.RESET_ALL+
